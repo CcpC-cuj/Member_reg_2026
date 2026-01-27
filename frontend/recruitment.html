@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Code Crafters | Recruitment</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <h1>Join <span>Code Crafters</span> Club</h1>
+        <p>Become part of an elite programming community.</p>
+
+        <form id="recruitment-form">
+          <label>
+            Full Name
+            <input id="name" type="text" required />
+          </label>
+          <label>
+            Email
+            <input id="email" type="email" required />
+          </label>
+          <label>
+            Mobile Number
+            <input id="mobile_number" type="tel" required />
+          </label>
+          <label>
+            Department
+            <input id="password" type="text" required />
+          </label>
+          <label>
+            Registration Number
+            <input id="reg" type="text" required />
+          </label>
+          <label>
+            About You
+            <textarea id="skills" rows="3" required></textarea>
+          </label>
+          <label>
+            Batch
+            <select id="Batch" required>
+              <option value="">Select Batch</option>
+              <option value="2023">2023</option>
+              <option value="2024">2024</option>
+            </select>
+          </label>
+          <label>
+            Preferred Language
+            <select id="language" required>
+              <option value="select">Select</option>
+              <option value="java">Java</option>
+              <option value="c">C/C++</option>
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+
+          <button type="submit">Submit</button>
+          <p id="recruitment-status" class="status"></p>
+        </form>
+      </div>
+    </div>
+
+    <script src="recruitment.js"></script>
+  </body>
+  </html>
+
+

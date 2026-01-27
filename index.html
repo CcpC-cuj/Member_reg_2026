@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Crafter Club | Registration</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="register-box">
+        <h1>Join <span>Code Crafter</span> Club</h1>
+        <p>Become a part of an elite programming community</p>
+
+        <form>
+            <div class="input-group">
+                <input type="text" id="name" required>
+                <label for="name">Full Name</label>
+            </div>
+
+            <div class="input-group">
+                <input type="email" id="email" required>
+                <label for="email">Email Address</label>
+            </div>
+
+            <div class="input-group">
+                <input type="tel" id="mobile_number" required>
+                <label for="mobile_number">Mobile Number</label>
+            </div>
+            <div class="input-group">
+                <input type="text" id="password" required>
+                <label for="password">Departement</label>
+            </div>
+            <div class="input-group">
+                <input type="text" id="reg" required>
+                <label for="reg">Registration Number</label>
+            </div>
+            <div class="input-group">
+                <input type="text" id="skills" required>
+                <label for="skills">About</label>
+            </div>
+            <div class="dropdown-group">
+                <label for="Batch">Batch</label>
+                <select id="Batch" required>
+                    <option value="" disabled selected>Select Batch</option>
+                    <option value="2023" style="color: black">2023</option>
+                    <option value="2024" style="color: black">2024</option>
+                </select>
+            </div>
+            <div class="dropdown-group">
+                <label for="language">Preferred Language</label>
+                <select id="language" required>
+                    <option value="select" style="color:black">Select</option>
+                    <option value="java" style="color:black">Java</option>
+                    <option value="c" style="color:black">C/C++</option>
+                    <option value="python" style="color:black">Python</option>
+                    <option value="javascript" style="color:black">JavaScript</option>
+                    <option value="other" style="color:black">OTHER</option>
+                </select>
+            </div>
+            <button type="button" class="btn"  id="btn1">Join Now</button>
+        </form>
+    </div>
+</div>
+<script src="index.js"></script>
+</body>
+</html>

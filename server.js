@@ -13,10 +13,7 @@ app.use(cors());
 
 // ---------------- MongoDB Connection ----------------
 mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  })
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch((err) => console.error("MongoDB Error:", err));
 
@@ -40,7 +37,7 @@ client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
 
 const emailApi = new SibApiV3Sdk.TransactionalEmailsApi();
 
-async function sendEmail(email, name) {
+async function sendRegistrationEmail(email, name) {
   try {
     await emailApi.sendTransacEmail({
       sender: {
@@ -71,6 +68,44 @@ Code Crafters Programming Club`
   }
 }
 
+async function sendCustomEmail(toEmails, subject, textContent) {
+  try {
+    await emailApi.sendTransacEmail({
+      sender: {
+        email: process.env.EMAIL_FROM,
+        name: "Code Crafters Programming Club"
+      },
+      to: toEmails.map((email) => ({ email })),
+      subject,
+      textContent
+    });
+    console.log(`Custom email sent to ${toEmails.length} recipient(s)`);
+    return true;
+  } catch (error) {
+    console.error("Brevo Email Error:", error);
+    return false;
+  }
+}
+
+// ---------------- Admin Auth ----------------
+function requireAdmin(req, res, next) {
+  const token = req.headers["x-admin-token"];
+  if (!process.env.ADMIN_TOKEN) {
+    return res
+      .status(500)
+      .json({ ok: false, message: "Admin token not configured" });
+  }
+  if (!token || token !== process.env.ADMIN_TOKEN) {
+    return res.status(401).json({ ok: false, message: "Unauthorized" });
+  }
+  return next();
+}
+
+// ---------------- Health ----------------
+app.get("/health", async (req, res) => {
+  res.json({ ok: true, status: "healthy" });
+});
+
 // ---------------- API Route ----------------
 app.post("/login", async (req, res) => {
   try {
@@ -95,12 +130,16 @@ app.post("/login", async (req, res) => {
       !reg_no ||
       !Batch
     ) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res
+        .status(400)
+        .json({ ok: false, message: "All fields are required" });
     }
 
     const alreadyExistUser = await User.findOne({ email });
     if (alreadyExistUser) {
-      return res.status(400).json({ ok: true, message: "User already exists" });
+      return res
+        .status(409)
+        .json({ ok: false, message: "User already exists" });
     }
 
     const newUser = new User({
@@ -121,13 +160,136 @@ app.post("/login", async (req, res) => {
       message: "Form submitted. Check your e-mail"
     });
 
-    sendEmail(email, name);
+    // Do not block the response on email sending
+    sendRegistrationEmail(email, name);
   } catch (err) {
     console.error("Server Error:", err);
     res.status(500).json({
-      error: "Something went wrong. Please try again."
+      ok: false,
+      message: "Something went wrong. Please try again."
     });
   }
+});
+
+// ---------------- Admin APIs ----------------
+
+// Optional login check for frontend (token verification)
+app.post("/admin/login", async (req, res) => {
+  const { token } = req.body || {};
+  if (!process.env.ADMIN_TOKEN) {
+    return res
+      .status(500)
+      .json({ ok: false, message: "Admin token not configured" });
+  }
+  if (!token || token !== process.env.ADMIN_TOKEN) {
+    return res.status(401).json({ ok: false, message: "Invalid admin token" });
+  }
+  return res.json({ ok: true, message: "Admin authenticated" });
+});
+
+app.get("/admin/users", requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find().sort({ _id: -1 });
+    res.json({ ok: true, users });
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ ok: false, message: "Failed to fetch users" });
+  }
+});
+
+app.get("/admin/users/:id", requireAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ ok: false, message: "User not found" });
+    }
+    res.json({ ok: true, user });
+  } catch (err) {
+    console.error("Error fetching user:", err);
+    res.status(500).json({ ok: false, message: "Failed to fetch user" });
+  }
+});
+
+app.post("/admin/email/user/:id", requireAdmin, async (req, res) => {
+  try {
+    const { subject, text } = req.body || {};
+    if (!subject || !text) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "Subject and text are required" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ ok: false, message: "User not found" });
+    }
+
+    const ok = await sendCustomEmail([user.email], subject, text);
+    if (!ok) return res.status(500).json({ ok: false, message: "Email failed" });
+    res.json({ ok: true, message: "Email sent" });
+  } catch (err) {
+    console.error("Error sending email:", err);
+    res.status(500).json({ ok: false, message: "Failed to send email" });
+  }
+});
+
+app.post("/admin/email/users", requireAdmin, async (req, res) => {
+  try {
+    const { userIds, subject, text } = req.body || {};
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "userIds must be a non-empty array" });
+    }
+    if (!subject || !text) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "Subject and text are required" });
+    }
+
+    const users = await User.find({ _id: { $in: userIds } });
+    const emails = users.map((u) => u.email);
+    if (emails.length === 0) {
+      return res
+        .status(404)
+        .json({ ok: false, message: "No users found for provided IDs" });
+    }
+
+    const ok = await sendCustomEmail(emails, subject, text);
+    if (!ok) return res.status(500).json({ ok: false, message: "Email failed" });
+    res.json({ ok: true, message: "Emails sent" });
+  } catch (err) {
+    console.error("Error sending emails:", err);
+    res.status(500).json({ ok: false, message: "Failed to send emails" });
+  }
+});
+
+app.post("/admin/email/all", requireAdmin, async (req, res) => {
+  try {
+    const { subject, text } = req.body || {};
+    if (!subject || !text) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "Subject and text are required" });
+    }
+    const users = await User.find({});
+    const emails = users.map((u) => u.email);
+    if (emails.length === 0) {
+      return res.status(404).json({ ok: false, message: "No users found" });
+    }
+
+    const ok = await sendCustomEmail(emails, subject, text);
+    if (!ok) return res.status(500).json({ ok: false, message: "Email failed" });
+    res.json({ ok: true, message: "Emails sent to all users" });
+  } catch (err) {
+    console.error("Error sending emails:", err);
+    res.status(500).json({ ok: false, message: "Failed to send emails" });
+  }
+});
+
+// API-only 404
+app.use((req, res) => {
+  res.status(404).json({ ok: false, message: "Not Found" });
 });
 
 // ---------------- Start Server ----------------

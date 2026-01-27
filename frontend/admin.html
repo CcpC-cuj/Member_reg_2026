@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | Code Crafters</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <h1>Admin Panel</h1>
+
+        <section id="admin-login-section">
+          <h2>Admin Login</h2>
+          <form id="admin-login-form">
+            <label>
+              Admin Token
+              <input id="admin-token-input" type="password" required />
+            </label>
+            <button type="submit">Login</button>
+          </form>
+          <p id="admin-login-status" class="status"></p>
+        </section>
+
+        <section id="admin-main-section" class="hidden">
+          <div class="toolbar">
+            <button id="refresh-users-btn">Refresh Users</button>
+            <button id="select-all-btn">Select All</button>
+            <button id="clear-selection-btn">Clear Selection</button>
+          </div>
+
+          <h2>Registered Users</h2>
+          <div class="table-wrapper">
+            <table id="users-table">
+              <thead>
+                <tr>
+                  <th>Select</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Reg No</th>
+                  <th>Batch</th>
+                  <th>Language</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <h2>Email Selected / All</h2>
+          <form id="admin-email-form">
+            <label>
+              Subject
+              <input id="email-subject" type="text" required />
+            </label>
+            <label>
+              Message
+              <textarea id="email-text" rows="4" required></textarea>
+            </label>
+
+            <div class="email-actions">
+              <button type="button" id="send-selected-btn">
+                Send to Selected
+              </button>
+              <button type="button" id="send-all-btn">Send to All</button>
+            </div>
+
+            <p id="admin-email-status" class="status"></p>
+          </form>
+        </section>
+      </div>
+    </div>
+
+    <script src="admin.js"></script>
+  </body>
+  </html>
+
+
