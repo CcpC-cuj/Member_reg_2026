@@ -167,6 +167,9 @@ git push origin main
 ```bash
 curl https://YOUR_USERNAME-YOUR_SPACE_NAME.hf.space/health
 ```
+ccpccuj/mem_reg_2026
+https://ccpccuj/mem_reg_2026.hf.space/health
+```
 
 Should return: `{"ok":true,"status":"healthy"}`
 

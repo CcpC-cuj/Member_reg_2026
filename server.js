@@ -14,8 +14,11 @@ app.use(cors());
 // ---------------- MongoDB Connection ----------------
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.error("MongoDB Error:", err));
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => {
+    console.error("❌ MongoDB Error:", err.message);
+    // Don't exit - allow server to start even if DB is temporarily unavailable
+  });
 
 // ---------------- User Schema ----------------
 const userSchema = new mongoose.Schema({
@@ -104,6 +107,16 @@ function requireAdmin(req, res, next) {
 // ---------------- Health ----------------
 app.get("/health", async (req, res) => {
   res.json({ ok: true, status: "healthy" });
+});
+
+// Root endpoint for Hugging Face Spaces health check
+app.get("/", (req, res) => {
+  res.json({ 
+    ok: true, 
+    message: "Member Registration API", 
+    health: "/health",
+    version: "1.0.0"
+  });
 });
 
 // ---------------- API Route ----------------
@@ -293,6 +306,8 @@ app.use((req, res) => {
 });
 
 // ---------------- Start Server ----------------
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`✅ Health check: http://0.0.0.0:${PORT}/health`);
+  console.log(`✅ API ready to accept requests`);
 });
