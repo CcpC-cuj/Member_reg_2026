@@ -37,15 +37,22 @@ jobs:
             exit 1
           fi
 
+          # Ensure full git history (unshallow if needed)
+          git fetch --unshallow || true
+          git fetch --all
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Authenticate via token in URL (do not echo this URL)
           HF_REMOTE="https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME}"
+          
+          # Remove remote if it exists, then add it
+          git remote remove hf 2>/dev/null || true
           git remote add hf "$HF_REMOTE"
 
-          # Force-push main to Space (Space uses its own git repo)
-          git push hf HEAD:main --force
+          # Push current branch to main on HF Space
+          git push hf "${{ github.ref_name }}:main" --force
 
 
 
