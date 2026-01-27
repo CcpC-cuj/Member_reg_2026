@@ -11,7 +11,7 @@
    - **Name:** `HF_SPACE_NAME`
    - **Value:** `mem_reg_2026` (your Space name)
 7. Click **"Add variable"**
-
+m
 **✅ Done!** Now push to `main` again and the workflow should work.
 
 ---
