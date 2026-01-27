@@ -1,3 +1,13 @@
+---
+title: Member Registration API
+emoji: 🚀
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_file: server.js
+pinned: false
+---
+
 # Member_reg_2026 — Full-Stack (API + Recruitment Form + Admin Panel)
 
 This project provides:
