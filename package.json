@@ -1,0 +1,28 @@
+{
+  "name": "member_reg_2026",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+  "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CcpC-cuj/Member_reg_2026.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/CcpC-cuj/Member_reg_2026/issues"
+  },
+  "homepage": "https://github.com/CcpC-cuj/Member_reg_2026#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "mongoose": "^9.1.5",
+    "sib-api-v3-sdk": "^8.5.0"
+  }
+}
