@@ -146,7 +146,7 @@ git push origin main
 3. Click it to watch progress
 4. Wait for green checkmark ✅
 
-### 4.3 Check Your Space
+### 4.3 Check Your Space 
 
 1. Go to: **https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME**
 2. Click **"Logs"** tab to see build/deploy progress
