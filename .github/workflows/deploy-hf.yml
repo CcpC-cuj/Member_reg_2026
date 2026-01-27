@@ -29,10 +29,10 @@ jobs:
         env:
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
+          HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
         run: |
           if [ -z "$HF_SPACE_NAME" ]; then
-            echo "Missing repo variable HF_SPACE_NAME"
+            echo "Missing secret HF_SPACE_NAME"
             exit 1
           fi
 
