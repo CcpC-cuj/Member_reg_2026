@@ -1,8 +1,7 @@
 // Recruitment form frontend
 
-// Replace this with your final deployed backend URL, e.g.:
-// const API_BASE_URL = "https://<hf-username>-<space-name>.hf.space";
-const API_BASE_URL = "http://localhost:3000";
+// Production backend URL (Hugging Face Spaces)
+const API_BASE_URL = "https://ccpccuj-mem-reg-2026.hf.space";
 
 document
   .getElementById("recruitment-form")
