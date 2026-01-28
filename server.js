@@ -23,9 +23,37 @@ if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
   process.exit(1);
 }
 
-// Middlewares
+// ---------------- CORS & Middlewares ----------------
 app.use(express.json());
-app.use(cors());
+
+const allowedOrigins = [
+  "https://ccpc-cuj.web.app",
+  "https://ccpc-cuj.firebaseapp.com",
+  "https://ccpccuj-mem-reg-2026.hf.space"
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow tools / same-origin / curl (no origin)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const isLocalhost =
+        /^https?:\/\/localhost(:\d+)?$/i.test(origin) ||
+        /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin) ||
+        /^https?:\/\/0\.0\.0\.0(:\d+)?$/i.test(origin);
+
+      if (allowedOrigins.includes(origin) || isLocalhost) {
+        return callback(null, true);
+      }
+
+      // Block unexpected origins
+      return callback(null, false);
+    }
+  })
+);
 
 // ---------------- Health & Root Endpoints (respond immediately) ----------------
 app.get("/health", (req, res) => {
@@ -56,22 +84,45 @@ mongoose
   });
 
 // ---------------- User Schema ----------------
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String,
-  phone: String,
-  PreferedLanguage: String,
-  Skills: String,
-  reg_no: String,
-  Batch: String
-});
+const userSchema = new mongoose.Schema(
+  {
+    name: String,
+    email: { type: String, unique: true },
+    password: String, // used as Department in UI
+    phone: String,
+    PreferedLanguage: String,
+    Skills: String,
+    reg_no: String,
+    Batch: String,
+    // Fields used by old React admin panel
+    active: { type: Boolean, default: true },
+    tasks: { type: [String], default: [] }
+  },
+  { timestamps: true }
+);
 
 const User = mongoose.model("User", userSchema);
 
-// ---------------- Brevo Email Setup ----------------
+// ---------------- Settings Schema (registration status etc.) ----------------
+const settingSchema = new mongoose.Schema(
+  {
+    key: { type: String, unique: true },
+    value: mongoose.Schema.Types.Mixed
+  },
+  { timestamps: true }
+);
+
+const Setting = mongoose.model("Setting", settingSchema);
+
+// cached registration status default
+let registrationIsOpen = true;
+
+// ---------------- Email Setup (Brevo / EMAIL_SERVICE_CREDENTIALS) ----------------
+const emailApiKey =
+  process.env.BREVO_API_KEY || process.env.EMAIL_SERVICE_CREDENTIALS || "";
+
 const client = SibApiV3Sdk.ApiClient.instance;
-client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
+client.authentications["api-key"].apiKey = emailApiKey;
 
 const emailApi = new SibApiV3Sdk.TransactionalEmailsApi();
 
@@ -190,7 +241,7 @@ app.post("/login", async (req, res) => {
 
     res.status(200).json({
       ok: true,
-      message: "Form submitted. Check your e-mail"
+      message: "Registration successful. Check your e-mail"
     });
 
     // Do not block the response on email sending
@@ -204,7 +255,17 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// ---------------- Admin APIs ----------------
+// Alias for clients expecting /api/register
+app.post("/api/register", async (req, res) => {
+  // Delegate to /login handler
+  return app._router.handle(
+    { ...req, url: "/login", originalUrl: "/login", method: "POST" },
+    res,
+    () => {}
+  );
+});
+
+// ---------------- Admin APIs (token-based, existing) ----------------
 
 // Optional login check for frontend (token verification)
 app.post("/admin/login", async (req, res) => {
@@ -317,6 +378,250 @@ app.post("/admin/email/all", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Error sending emails:", err);
     res.status(500).json({ ok: false, message: "Failed to send emails" });
+  }
+});
+
+// ---------------- React Admin-compatible APIs (old admin panel) ----------------
+
+// Admin login expected by old React AdminLogin component
+// POST /api/admin/login  body: { email, password } -> { success, token, message }
+app.post("/api/admin/login", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    const adminEmailEnv = process.env.ADMIN_EMAIL || "";
+    const adminPasswordEnv = process.env.ADMIN_PASSWORD || "";
+
+    // Support multiple admin accounts: values can be like "email1||email2"
+    const adminEmails = adminEmailEnv.split("||").map((e) => e.trim()).filter(Boolean);
+    const adminPasswords = adminPasswordEnv
+      .split("||")
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    if (!adminEmails.length || !adminPasswords.length || !process.env.ADMIN_TOKEN) {
+      return res.status(500).json({
+        success: false,
+        message: "Admin credentials not configured on server"
+      });
+    }
+
+    // Check if provided credentials match any configured pair
+    let isValid = false;
+    for (let i = 0; i < adminEmails.length; i++) {
+      const e = adminEmails[i];
+      const p = adminPasswords[i] || adminPasswords[0]; // fall back to first password if fewer passwords
+      if (email === e && password === p) {
+        isValid = true;
+        break;
+      }
+    }
+
+    if (isValid) {
+      return res.json({
+        success: true,
+        token: process.env.ADMIN_TOKEN,
+        message: "Admin authenticated"
+      });
+    }
+
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid credentials. Please try again." });
+  } catch (err) {
+    console.error("Error in /api/admin/login:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to login. Please try again." });
+  }
+});
+
+// Registration status used by old React Home + RegistrationForm
+// GET /api/settings/registration-status -> { isOpen: boolean }
+app.get("/api/settings/registration-status", async (req, res) => {
+  try {
+    const setting = await Setting.findOne({ key: "registrationIsOpen" });
+    if (setting && typeof setting.value === "boolean") {
+      registrationIsOpen = setting.value;
+    }
+    res.json({ isOpen: registrationIsOpen });
+  } catch (err) {
+    console.error("Error reading registration status:", err);
+    // fall back to cached value
+    res.json({ isOpen: registrationIsOpen });
+  }
+});
+
+// PUT /api/settings/registration-status  body: { isOpen: boolean }
+app.put("/api/settings/registration-status", async (req, res) => {
+  try {
+    const { isOpen } = req.body || {};
+    registrationIsOpen = !!isOpen;
+
+    await Setting.findOneAndUpdate(
+      { key: "registrationIsOpen" },
+      { value: registrationIsOpen },
+      { upsert: true, new: true }
+    );
+
+    res.json({
+      isOpen: registrationIsOpen,
+      message: `Registration is now ${registrationIsOpen ? "OPEN" : "CLOSED"}`
+    });
+  } catch (err) {
+    console.error("Error updating registration status:", err);
+    res.status(500).json({
+      message: "Failed to update registration status",
+      isOpen: registrationIsOpen
+    });
+  }
+});
+
+// Users listing used by old React Users component
+// GET /api/users -> [user, ...]
+app.get("/api/users", async (req, res) => {
+  try {
+    const docs = await User.find().sort({ createdAt: -1 }).lean();
+    const users = docs.map((u) => ({
+      ...u,
+      // alias fields to match old frontend expectations
+      batch: u.Batch,
+      skills: u.Skills,
+      preferedLanguage: u.PreferedLanguage
+    }));
+    res.json(users);
+  } catch (err) {
+    console.error("Error fetching users for /api/users:", err);
+    res.status(500).json({ message: "Failed to fetch users" });
+  }
+});
+
+// Update active status: PUT /api/users/:id/status  body: { active: boolean }
+app.put("/api/users/:id/status", async (req, res) => {
+  try {
+    const { active } = req.body || {};
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { active: !!active },
+      { new: true }
+    );
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error("Error updating user status:", err);
+    res.status(500).json({ message: "Failed to update user status" });
+  }
+});
+
+// Assign single task: POST /api/users/:id/task  body: { task: string }
+app.post("/api/users/:id/task", async (req, res) => {
+  try {
+    const { task } = req.body || {};
+    if (!task) {
+      return res.status(400).json({ message: "Task is required" });
+    }
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (!Array.isArray(user.tasks)) {
+      user.tasks = [];
+    }
+    user.tasks.push(task);
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    console.error("Error adding task:", err);
+    res.status(500).json({ message: "Failed to add task" });
+  }
+});
+
+// Replace tasks: PUT /api/users/:id/updateTasks  body: { tasks: string[] }
+app.put("/api/users/:id/updateTasks", async (req, res) => {
+  try {
+    const { tasks } = req.body || {};
+    if (!Array.isArray(tasks)) {
+      return res.status(400).json({ message: "tasks must be an array of strings" });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { tasks },
+      { new: true }
+    );
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error("Error updating tasks:", err);
+    res.status(500).json({ message: "Failed to update tasks" });
+  }
+});
+
+// Individual email send: POST /api/email/send-individual  body: { userId }
+app.post("/api/email/send-individual", async (req, res) => {
+  try {
+    const { userId } = req.body || {};
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "userId is required" });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const ok = await sendRegistrationEmail(user.email, user.name);
+    if (!ok) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to send email" });
+    }
+
+    res.json({ success: true, message: "Email sent successfully" });
+  } catch (err) {
+    console.error("Error in /api/email/send-individual:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to send email" });
+  }
+});
+
+// Bulk email send: POST /api/email/send-bulk
+// Sends to all active users
+app.post("/api/email/send-bulk", async (req, res) => {
+  try {
+    const users = await User.find({ active: true });
+    const emails = users.map((u) => u.email);
+
+    if (emails.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No active users to email" });
+    }
+
+    const ok = await sendCustomEmail(
+      emails,
+      "Code Crafters Programming Club - Welcome",
+      "Welcome to Code Crafters Programming Club!"
+    );
+
+    if (!ok) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to send bulk email" });
+    }
+
+    res.json({
+      success: true,
+      message: `Bulk email sent to ${emails.length} active users`
+    });
+  } catch (err) {
+    console.error("Error in /api/email/send-bulk:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to send bulk email" });
   }
 });
 
