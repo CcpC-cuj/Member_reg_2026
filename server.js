@@ -5,7 +5,17 @@ require("dotenv").config();
 const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+
+// Read PORT from environment (Hugging Face Spaces sets this automatically)
+// In production (HF Spaces), PORT will be set to 7860
+// In local dev, default to 3000 if not set
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+// Debug logging - this will help diagnose port issues
+console.log(`🔧 Environment check:`);
+console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+console.log(`   - PORT env var: ${process.env.PORT || 'NOT SET (will use default 3000)'}`);
+console.log(`   - Server will listen on port: ${PORT}`);
 
 // Middlewares
 app.use(express.json());
@@ -306,8 +316,15 @@ app.use((req, res) => {
 });
 
 // ---------------- Start Server ----------------
+// Validate PORT is a valid number
+if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
+  console.error(`❌ Invalid PORT: ${PORT}. Must be between 1-65535`);
+  process.exit(1);
+}
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`✅ Health check: http://0.0.0.0:${PORT}/health`);
   console.log(`✅ API ready to accept requests`);
+  console.log(`✅ Listening on 0.0.0.0:${PORT} (all interfaces)`);
 });
