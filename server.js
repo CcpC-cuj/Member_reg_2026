@@ -120,6 +120,8 @@ const emailLogSchema = new mongoose.Schema(
     type: { type: String, enum: ["individual", "bulk", "custom"], required: true },
     userIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
     subject: { type: String, default: "" },
+    htmlContent: { type: String, default: "" },
+    plainText: { type: String, default: "" },
     sentAt: { type: Date, default: Date.now },
     sentBy: { type: String, default: "unknown" },
     status: { type: String, enum: ["success", "failed"], required: true },
@@ -617,11 +619,16 @@ app.post("/api/email/send-individual", async (req, res) => {
   const sentBy = getSentBy(req);
   try {
     const { userId } = req.body || {};
+    const subject = "Registration email";
+    const htmlContent = "";
+    const plainText = ""; // will be filled only on success when we have the template
     if (!userId) {
       await EmailLog.create({
         type: "individual",
         userIds: [],
-        subject: "Registration email",
+        subject,
+        htmlContent,
+        plainText,
         sentAt: new Date(),
         sentBy,
         status: "failed",
@@ -634,7 +641,9 @@ app.post("/api/email/send-individual", async (req, res) => {
       await EmailLog.create({
         type: "individual",
         userIds: [],
-        subject: "Registration email",
+        subject,
+        htmlContent,
+        plainText,
         sentAt: new Date(),
         sentBy,
         status: "failed",
@@ -643,12 +652,28 @@ app.post("/api/email/send-individual", async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    // Keep the exact content used by sendRegistrationEmail (plain text)
+    const registrationPlainText = `Dear ${user.name},
+
+Thank you for registering for the Code Crafters Programming Club.
+
+Task Document:
+https://docs.google.com/document/d/1jUdkuXKYLQf1zCbwS0CzkaRxxbeb2RqNBUeKYI4Fvn8/edit
+
+Response Form:
+https://forms.gle/UbESfaUvxLCADXEj6
+
+Best Regards,
+Code Crafters Programming Club`;
+
     const ok = await sendRegistrationEmail(user.email, user.name);
     if (!ok) {
       await EmailLog.create({
         type: "individual",
         userIds: [user._id],
-        subject: "Registration email",
+        subject,
+        htmlContent: "",
+        plainText: registrationPlainText,
         sentAt: new Date(),
         sentBy,
         status: "failed",
@@ -662,7 +687,9 @@ app.post("/api/email/send-individual", async (req, res) => {
     const log = await EmailLog.create({
       type: "individual",
       userIds: [user._id],
-      subject: "Registration email",
+      subject,
+      htmlContent: "",
+      plainText: registrationPlainText,
       sentAt: new Date(),
       sentBy,
       status: "success",
@@ -677,6 +704,8 @@ app.post("/api/email/send-individual", async (req, res) => {
         type: "individual",
         userIds: [],
         subject: "Registration email",
+        htmlContent: "",
+        plainText: "",
         sentAt: new Date(),
         sentBy,
         status: "failed",
@@ -697,12 +726,17 @@ app.post("/api/email/send-bulk", async (req, res) => {
     const users = await User.find({ active: true });
     const emails = users.map((u) => u.email);
     const userIds = users.map((u) => u._id);
+    const subject = "Bulk welcome email";
+    const htmlContent = "";
+    const plainText = "Welcome to Code Crafters Programming Club!";
 
     if (emails.length === 0) {
       await EmailLog.create({
         type: "bulk",
         userIds: [],
-        subject: "Bulk welcome email",
+        subject,
+        htmlContent,
+        plainText,
         sentAt: new Date(),
         sentBy,
         status: "failed",
@@ -723,7 +757,9 @@ app.post("/api/email/send-bulk", async (req, res) => {
       await EmailLog.create({
         type: "bulk",
         userIds,
-        subject: "Bulk welcome email",
+        subject,
+        htmlContent,
+        plainText,
         sentAt: new Date(),
         sentBy,
         status: "failed",
@@ -737,7 +773,9 @@ app.post("/api/email/send-bulk", async (req, res) => {
     const log = await EmailLog.create({
       type: "bulk",
       userIds,
-      subject: "Bulk welcome email",
+      subject,
+      htmlContent,
+      plainText,
       sentAt: new Date(),
       sentBy,
       status: "success",
@@ -755,6 +793,8 @@ app.post("/api/email/send-bulk", async (req, res) => {
         type: "bulk",
         userIds: [],
         subject: "Bulk welcome email",
+        htmlContent: "",
+        plainText: "",
         sentAt: new Date(),
         sentBy,
         status: "failed",
@@ -800,6 +840,8 @@ app.post("/api/email/send-custom", async (req, res) => {
         type: "custom",
         userIds: [],
         subject,
+        htmlContent: htmlContent || "",
+        plainText: plainText || "",
         sentAt: new Date(),
         sentBy,
         status: "failed",
@@ -816,6 +858,8 @@ app.post("/api/email/send-custom", async (req, res) => {
       type: "custom",
       userIds: resolvedUserIds,
       subject,
+      htmlContent: htmlContent || "",
+      plainText: plainText || "",
       sentAt: new Date(),
       sentBy,
       status: ok ? "success" : "failed",
@@ -868,7 +912,7 @@ app.get("/api/email/logs", async (req, res) => {
     
     const logs = await EmailLog.find(filter)
       .sort({ sentAt: -1 })
-      .select("_id type userIds subject sentAt sentBy status message createdAt")
+      .select("_id type userIds subject htmlContent plainText sentAt sentBy status message createdAt")
       .lean();
     
     // Ensure sentAt is ISO string for frontend
