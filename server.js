@@ -831,7 +831,26 @@ app.post("/api/email/send-custom", async (req, res) => {
       });
     }
 
-    const users = await User.find({ _id: { $in: userIds } });
+    // Filter only valid ObjectId strings; ignore malformed IDs
+    const validIds = (userIds || []).filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (validIds.length === 0) {
+      const log = await EmailLog.create({
+        type: "custom",
+        userIds: [],
+        subject,
+        htmlContent: htmlContent || "",
+        plainText: plainText || "",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: "No valid userIds provided"
+      });
+      return res
+        .status(400)
+        .json({ success: false, message: "No valid userIds provided", emailLogId: log._id });
+    }
+
+    const users = await User.find({ _id: { $in: validIds } });
     const emails = users.map((u) => u.email);
     const resolvedUserIds = users.map((u) => u._id);
 
