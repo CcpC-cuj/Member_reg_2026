@@ -6,28 +6,53 @@ const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 const app = express();
 
-// Read PORT from environment (Hugging Face Spaces sets this automatically)
-// In production (HF Spaces), PORT will be set to 7860
-// In local dev, default to 3000 if not set
+// Read PORT from environment
+// Hugging Face Spaces automatically sets PORT=7860
+// For local dev, default to 3000
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// Debug logging - this will help diagnose port issues
+// Debug logging
 console.log(`🔧 Environment check:`);
 console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-console.log(`   - PORT env var: ${process.env.PORT || 'NOT SET (will use default 3000)'}`);
+console.log(`   - PORT env var: ${process.env.PORT || 'NOT SET (using default 3000)'}`);
 console.log(`   - Server will listen on port: ${PORT}`);
+
+// Validate PORT immediately
+if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
+  console.error(`❌ Invalid PORT: ${PORT}. Must be between 1-65535`);
+  process.exit(1);
+}
 
 // Middlewares
 app.use(express.json());
 app.use(cors());
 
-// ---------------- MongoDB Connection ----------------
+// ---------------- Health & Root Endpoints (respond immediately) ----------------
+app.get("/health", (req, res) => {
+  res.json({ ok: true, status: "healthy", timestamp: new Date().toISOString() });
+});
+
+app.get("/", (req, res) => {
+  res.json({ 
+    ok: true, 
+    message: "Member Registration API", 
+    health: "/health",
+    version: "1.0.0",
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ---------------- MongoDB Connection (non-blocking) ----------------
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000,
+  })
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => {
     console.error("❌ MongoDB Error:", err.message);
     // Don't exit - allow server to start even if DB is temporarily unavailable
+    console.log("⚠️  Server will continue without MongoDB connection");
   });
 
 // ---------------- User Schema ----------------
@@ -113,21 +138,6 @@ function requireAdmin(req, res, next) {
   }
   return next();
 }
-
-// ---------------- Health ----------------
-app.get("/health", async (req, res) => {
-  res.json({ ok: true, status: "healthy" });
-});
-
-// Root endpoint for Hugging Face Spaces health check
-app.get("/", (req, res) => {
-  res.json({ 
-    ok: true, 
-    message: "Member Registration API", 
-    health: "/health",
-    version: "1.0.0"
-  });
-});
 
 // ---------------- API Route ----------------
 app.post("/login", async (req, res) => {
@@ -315,16 +325,21 @@ app.use((req, res) => {
   res.status(404).json({ ok: false, message: "Not Found" });
 });
 
-// ---------------- Start Server ----------------
-// Validate PORT is a valid number
-if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
-  console.error(`❌ Invalid PORT: ${PORT}. Must be between 1-65535`);
-  process.exit(1);
-}
-
-app.listen(PORT, "0.0.0.0", () => {
+// ---------------- Start Server (start immediately, don't wait for MongoDB) ----------------
+// Start server immediately so health checks can pass
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`✅ Health check: http://0.0.0.0:${PORT}/health`);
+  console.log(`✅ Root endpoint: http://0.0.0.0:${PORT}/`);
   console.log(`✅ API ready to accept requests`);
   console.log(`✅ Listening on 0.0.0.0:${PORT} (all interfaces)`);
+});
+
+// Handle server errors
+server.on("error", (err) => {
+  console.error(`❌ Server error: ${err.message}`);
+  if (err.code === "EADDRINUSE") {
+    console.error(`❌ Port ${PORT} is already in use`);
+  }
+  process.exit(1);
 });
