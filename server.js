@@ -86,13 +86,13 @@ mongoose
 // ---------------- User Schema ----------------
 const userSchema = new mongoose.Schema(
   {
-    name: String,
-    email: { type: String, unique: true },
+  name: String,
+  email: { type: String, unique: true },
     password: String, // used as Department in UI
-    phone: String,
-    PreferedLanguage: String,
-    Skills: String,
-    reg_no: String,
+  phone: String,
+  PreferedLanguage: String,
+  Skills: String,
+  reg_no: String,
     Batch: String,
     // Fields used by old React admin panel
     active: { type: Boolean, default: true },
@@ -113,6 +113,22 @@ const settingSchema = new mongoose.Schema(
 );
 
 const Setting = mongoose.model("Setting", settingSchema);
+
+// ---------------- Email Log Schema (admin audit trail) ----------------
+const emailLogSchema = new mongoose.Schema(
+  {
+    type: { type: String, enum: ["individual", "bulk", "custom"], required: true },
+    userIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
+    subject: { type: String, default: "" },
+    sentAt: { type: Date, default: Date.now },
+    sentBy: { type: String, default: "unknown" },
+    status: { type: String, enum: ["success", "failed"], required: true },
+    message: { type: String, default: "" }
+  },
+  { timestamps: true }
+);
+
+const EmailLog = mongoose.model("EmailLog", emailLogSchema);
 
 // cached registration status default
 let registrationIsOpen = true;
@@ -174,6 +190,37 @@ async function sendCustomEmail(toEmails, subject, textContent) {
     console.error("Brevo Email Error:", error);
     return false;
   }
+}
+
+async function sendCustomEmailHtml(toEmails, subject, htmlContent, plainText) {
+  try {
+    await emailApi.sendTransacEmail({
+      sender: {
+        email: process.env.EMAIL_FROM,
+        name: "Code Crafters Programming Club"
+      },
+      to: toEmails.map((email) => ({ email })),
+      subject,
+      htmlContent: htmlContent || undefined,
+      textContent: plainText || undefined
+    });
+    console.log(`Custom HTML email sent to ${toEmails.length} recipient(s)`);
+    return true;
+  } catch (error) {
+    console.error("Brevo Email Error:", error);
+    return false;
+  }
+}
+
+function getSentBy(req) {
+  // Prefer explicit header from admin frontend if provided
+  const headerEmail =
+    (req.headers["x-admin-email"] || req.headers["x_admin_email"] || "").toString().trim();
+  if (headerEmail) return headerEmail;
+  // Fallback to body (optional)
+  const bodyEmail = (req.body && (req.body.sentBy || req.body.adminEmail)) || "";
+  if (typeof bodyEmail === "string" && bodyEmail.trim()) return bodyEmail.trim();
+  return "unknown";
 }
 
 // ---------------- Admin Auth ----------------
@@ -481,7 +528,12 @@ app.put("/api/settings/registration-status", async (req, res) => {
 // GET /api/users -> [user, ...]
 app.get("/api/users", async (req, res) => {
   try {
-    const docs = await User.find().sort({ createdAt: -1 }).lean();
+    const status = (req.query.status || "all").toString().toLowerCase();
+    const filter = {};
+    if (status === "active") filter.active = true;
+    if (status === "inactive") filter.active = false;
+
+    const docs = await User.find(filter).sort({ createdAt: -1 }).lean();
     const users = docs.map((u) => ({
       ...u,
       // alias fields to match old frontend expectations
@@ -562,26 +614,75 @@ app.put("/api/users/:id/updateTasks", async (req, res) => {
 
 // Individual email send: POST /api/email/send-individual  body: { userId }
 app.post("/api/email/send-individual", async (req, res) => {
+  const sentBy = getSentBy(req);
   try {
     const { userId } = req.body || {};
     if (!userId) {
+      await EmailLog.create({
+        type: "individual",
+        userIds: [],
+        subject: "Registration email",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: "userId is required"
+      });
       return res.status(400).json({ success: false, message: "userId is required" });
     }
     const user = await User.findById(userId);
     if (!user) {
+      await EmailLog.create({
+        type: "individual",
+        userIds: [],
+        subject: "Registration email",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: "User not found"
+      });
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
     const ok = await sendRegistrationEmail(user.email, user.name);
     if (!ok) {
+      await EmailLog.create({
+        type: "individual",
+        userIds: [user._id],
+        subject: "Registration email",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: "Failed to send email"
+      });
       return res
         .status(500)
         .json({ success: false, message: "Failed to send email" });
     }
 
+    const log = await EmailLog.create({
+      type: "individual",
+      userIds: [user._id],
+      subject: "Registration email",
+      sentAt: new Date(),
+      sentBy,
+      status: "success",
+      message: "Email sent successfully"
+    });
+
     res.json({ success: true, message: "Email sent successfully" });
   } catch (err) {
     console.error("Error in /api/email/send-individual:", err);
+    try {
+      await EmailLog.create({
+        type: "individual",
+        userIds: [],
+        subject: "Registration email",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: err.message || "Unexpected error"
+      });
+    } catch (_) {}
     res
       .status(500)
       .json({ success: false, message: "Failed to send email" });
@@ -591,11 +692,22 @@ app.post("/api/email/send-individual", async (req, res) => {
 // Bulk email send: POST /api/email/send-bulk
 // Sends to all active users
 app.post("/api/email/send-bulk", async (req, res) => {
+  const sentBy = getSentBy(req);
   try {
     const users = await User.find({ active: true });
     const emails = users.map((u) => u.email);
+    const userIds = users.map((u) => u._id);
 
     if (emails.length === 0) {
+      await EmailLog.create({
+        type: "bulk",
+        userIds: [],
+        subject: "Bulk welcome email",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: "No active users to email"
+      });
       return res
         .status(404)
         .json({ success: false, message: "No active users to email" });
@@ -608,10 +720,29 @@ app.post("/api/email/send-bulk", async (req, res) => {
     );
 
     if (!ok) {
+      await EmailLog.create({
+        type: "bulk",
+        userIds,
+        subject: "Bulk welcome email",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: "Failed to send bulk email"
+      });
       return res
         .status(500)
         .json({ success: false, message: "Failed to send bulk email" });
     }
+
+    const log = await EmailLog.create({
+      type: "bulk",
+      userIds,
+      subject: "Bulk welcome email",
+      sentAt: new Date(),
+      sentBy,
+      status: "success",
+      message: `Bulk email sent to ${emails.length} active users`
+    });
 
     res.json({
       success: true,
@@ -619,9 +750,160 @@ app.post("/api/email/send-bulk", async (req, res) => {
     });
   } catch (err) {
     console.error("Error in /api/email/send-bulk:", err);
+    try {
+      await EmailLog.create({
+        type: "bulk",
+        userIds: [],
+        subject: "Bulk welcome email",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: err.message || "Unexpected error"
+      });
+    } catch (_) {}
     res
       .status(500)
       .json({ success: false, message: "Failed to send bulk email" });
+  }
+});
+
+// ---------------- Custom Email (HTML) + Email Logs ----------------
+
+// POST /api/email/send-custom
+// body: { userIds: [], subject, htmlContent, plainText }
+app.post("/api/email/send-custom", async (req, res) => {
+  const sentBy = getSentBy(req);
+  try {
+    const { userIds, subject, htmlContent, plainText } = req.body || {};
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "userIds must be a non-empty array" });
+    }
+    if (!subject || typeof subject !== "string") {
+      return res.status(400).json({ success: false, message: "subject is required" });
+    }
+    if (!htmlContent && !plainText) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide htmlContent and/or plainText"
+      });
+    }
+
+    const users = await User.find({ _id: { $in: userIds } });
+    const emails = users.map((u) => u.email);
+    const resolvedUserIds = users.map((u) => u._id);
+
+    if (emails.length === 0) {
+      const log = await EmailLog.create({
+        type: "custom",
+        userIds: [],
+        subject,
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: "No users found for provided IDs"
+      });
+      return res
+        .status(404)
+        .json({ success: false, message: "No users found for provided IDs" });
+    }
+
+    const ok = await sendCustomEmailHtml(emails, subject, htmlContent, plainText);
+
+    const log = await EmailLog.create({
+      type: "custom",
+      userIds: resolvedUserIds,
+      subject,
+      sentAt: new Date(),
+      sentBy,
+      status: ok ? "success" : "failed",
+      message: ok
+        ? `Custom email sent to ${emails.length} users`
+        : "Failed to send custom email"
+    });
+
+    if (!ok) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send custom email"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Custom email sent to ${emails.length} users`,
+      emailLogId: log._id
+    });
+  } catch (err) {
+    console.error("Error in /api/email/send-custom:", err);
+    try {
+      const log = await EmailLog.create({
+        type: "custom",
+        userIds: [],
+        subject: (req.body && req.body.subject) || "",
+        sentAt: new Date(),
+        sentBy,
+        status: "failed",
+        message: err.message || "Unexpected error"
+      });
+      return res.status(500).json({
+        success: false,
+        message: err.message || "Failed to send custom email",
+        emailLogId: log._id
+      });
+    } catch (_) {
+      return res.status(500).json({ success: false, message: "Failed to send custom email" });
+    }
+  }
+});
+
+// GET /api/email/logs -> array
+// Query param: ?type=custom|individual|bulk|all (default: all)
+app.get("/api/email/logs", async (req, res) => {
+  try {
+    const { type = "all" } = req.query || {};
+    const filter = type === "all" ? {} : { type };
+    
+    const logs = await EmailLog.find(filter)
+      .sort({ sentAt: -1 })
+      .select("_id type userIds subject sentAt sentBy status message createdAt")
+      .lean();
+    
+    // Ensure sentAt is ISO string for frontend
+    const formattedLogs = logs.map(log => ({
+      ...log,
+      sentAt: log.sentAt ? new Date(log.sentAt).toISOString() : new Date().toISOString(),
+      createdAt: log.createdAt ? new Date(log.createdAt).toISOString() : new Date().toISOString()
+    }));
+    
+    res.json(formattedLogs);
+  } catch (err) {
+    console.error("Error fetching email logs:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch email logs" });
+  }
+});
+
+// GET /api/email/logs/:id -> single log
+app.get("/api/email/logs/:id", async (req, res) => {
+  try {
+    const log = await EmailLog.findById(req.params.id).lean();
+    if (!log) {
+      return res.status(404).json({ success: false, message: "Email log not found" });
+    }
+    
+    // Format dates as ISO strings
+    const formattedLog = {
+      ...log,
+      sentAt: log.sentAt ? new Date(log.sentAt).toISOString() : new Date().toISOString(),
+      createdAt: log.createdAt ? new Date(log.createdAt).toISOString() : new Date().toISOString()
+    };
+    
+    res.json(formattedLog);
+  } catch (err) {
+    console.error("Error fetching email log:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch email log" });
   }
 });
 
