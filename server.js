@@ -170,12 +170,12 @@ async function sendRegistrationEmail(email, name) {
                 <h1 style="margin:0 0 12px 0;font-size:24px;line-height:1.3;color:#0f172a;">Thank you for registering for the <strong>Code Crafters Programming Club</strong>!</h1>
                 <p style="margin:0 0 16px 0;font-size:15px;line-height:1.7;">Dear <strong>${name}</strong>,</p>
                 <p style="margin:0 0 16px 0;font-size:15px;line-height:1.7;">We’re genuinely excited to have you with us. By joining Code Crafters, you’ve taken the first step toward a community that believes in learning, building, and growing together through code. 💻✨</p>
-                <p style="margin:0 0 20px 0;font-size:15px;line-height:1.7;"><em>This is more than just a club</em>—it’s a space where ideas turn into projects, curiosity turns into skills, and passion turns into progress.</p>
+                <p style="margin:0 0 20px 0;font-size:15px;line-height:1.7;"><em>This is more than just a club</em> it’s a space where ideas turn into projects, curiosity turns into skills, and passion turns into progress.</p>
 
                 <h2 style="margin:0 0 10px 0;font-size:18px;line-height:1.4;color:#0f172a;">📌 Important Update</h2>
                 <p style="margin:0 0 12px 0;font-size:15px;line-height:1.7;">We have shared an initial task to help us understand your interests and approach to problem-solving.</p>
                 <ul style="margin:0 0 16px 18px;padding:0;font-size:15px;line-height:1.7;">
-                  <li><strong>This task is mandatory for 2nd-year students only.</strong></li>
+                  <li><strong>This task is mandatory for 2nd-year students.</strong></li>
                   <li>1st-year students may skip this task for now.</li>
                   <li>2nd-year students are requested to complete the task and submit their response using the Google Form link below.</li>
                 </ul>
@@ -194,7 +194,7 @@ async function sendRegistrationEmail(email, name) {
                 <p style="margin:0 0 6px 0;font-size:15px;line-height:1.7;">📘 Facebook: <a href="https://www.facebook.com/profile.php?id=61551122720871" style="color:#2563eb;text-decoration:none;">Code Crafters</a></p>
                 <p style="margin:0 0 18px 0;font-size:15px;line-height:1.7;">📸 Instagram: <a href="https://www.instagram.com/codecrafters_cuj?igshid=OGQ5ZDc2ODk2ZA==" style="color:#2563eb;text-decoration:none;">@codecrafters_cuj</a></p>
 
-                <p style="margin:0 0 18px 0;font-size:15px;line-height:1.7;">If you have any questions or need further clarification, feel free to reply to this email or reach out to us at <a href="mailto:codecrafter.cuj@gmail.com" style="color:#2563eb;text-decoration:none;">codecrafter.cuj@gmail.com</a>—we’re always happy to help.</p>
+                <p style="margin:0 0 18px 0;font-size:15px;line-height:1.7;">If you have any questions or need further clarification, feel free to reply to this email or reach out to us at <a href="mailto:codecrafter.cuj@gmail.com" style="color:#2563eb;text-decoration:none;">codecrafter.cuj@gmail.com</a> we’re always happy to help.</p>
 
                 <p style="margin:0 0 4px 0;font-size:15px;line-height:1.7;"><strong>Once again, welcome to the Code Crafters family.</strong></p>
                 <p style="margin:0 0 20px 0;font-size:15px;line-height:1.7;">Let’s learn, build, and create something amazing together! 🚀</p>
