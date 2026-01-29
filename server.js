@@ -152,16 +152,44 @@ async function sendRegistrationEmail(email, name) {
         name: "Code Crafters Programming Club"
       },
       to: [{ email }],
-      subject: "Next Steps for Your Code Crafters Programming Club Registration",
+      subject: "Next Steps for Your Code Crafters Programming Club Registration 2026",
       textContent: `Dear ${name},
 
-Thank you for registering for the Code Crafters Programming Club.
+Thank you for registering for the Code Crafters Programming Club!
+We’re genuinely excited to have you with us. By joining Code Crafters, you’ve taken the first step toward a community that believes in learning, building, and growing together through code. 💻✨
 
-Task Document:
+This is more than just a club, it’s a space where ideas turn into projects, curiosity turns into skills, and passion turns into progress. We’re glad you chose to be a part of this journey.
+
+📌 Important Update
+
+We have shared an initial task to help us understand your interests and approach to problem-solving.
+
+🔹 This task is mandatory for 2nd-year students only.
+🔹 1st-year students may skip this task for now.
+🔹 2nd-year students are requested to complete the task and submit their response using the Google Form link below.
+
+📄 Task Document:
+
 https://docs.google.com/document/d/1jUdkuXKYLQf1zCbwS0CzkaRxxbeb2RqNBUeKYI4Fvn8/edit
 
-Response Form:
+📝 Response Form:
+
 https://forms.gle/UbESfaUvxLCADXEj6
+
+📬 Please check your email regularly, as all future updates, opportunities, and announcements from Code Crafters will be shared through email.
+
+🌐 Stay Connected With Us
+
+Follow us on our official platforms to stay updated with events, announcements, and tech content:
+
+🔗 LinkedIn: https://www.linkedin.com/company/codecraftercuj/
+📘 Facebook: https://www.facebook.com/profile.php?id=61551122720871
+📸 Instagram: https://www.instagram.com/codecrafters_cuj?igshid=OGQ5ZDc2ODk2ZA==
+
+If you have any questions or need further clarification, feel free to reply to this email or reach out to us at codecrafter.cuj@gmail.com we’re always happy to help.
+
+Once again, welcome to the Code Crafters family.
+Let’s learn, build, and create something amazing together! 🚀
 
 Best Regards,
 Code Crafters Programming Club`
