@@ -56,6 +56,19 @@ app.use(
   })
 );
 
+// ---------------- Rate Limiter for Registration ----------------
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Max 5 registration attempts per IP per hour
+  message: "Too many registration attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Don't rate limit health/root endpoints
+    return req.path === "/health" || req.path === "/";
+  }
+});
+
 // ---------------- Health & Root Endpoints (respond immediately) ----------------
 app.get("/health", (req, res) => {
   res.json({ ok: true, status: "healthy", timestamp: new Date().toISOString() });
