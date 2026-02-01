@@ -24,6 +24,9 @@ if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
   process.exit(1);
 }
 
+// Trust proxy for rate limiting behind reverse proxy (Hugging Face Spaces)
+app.set('trust proxy', true);
+
 // ---------------- CORS & Middlewares ----------------
 app.use(express.json());
 
