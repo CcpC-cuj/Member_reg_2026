@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 const SibApiV3Sdk = require("sib-api-v3-sdk");
 
@@ -322,8 +323,38 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
+// -------- reCAPTCHA Verification ----------------
+async function verifyRecaptcha(token) {
+  try {
+    if (!token) {
+      console.warn("⚠️  reCAPTCHA token not provided");
+      return false;
+    }
+
+    if (!process.env.RECAPTCHA_SECRET_KEY) {
+      console.warn("⚠️  RECAPTCHA_SECRET_KEY not configured");
+      return true; // Skip verification if not configured
+    }
+
+    const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${token}`
+    });
+
+    const data = await response.json();
+    console.log(`🔐 reCAPTCHA response: score=${data.score}, success=${data.success}`);
+
+    // Accept if score > 0.5 (0.0 = bot, 1.0 = human)
+    return data.success && data.score > 0.5;
+  } catch (error) {
+    console.error("❌ reCAPTCHA verification error:", error.message);
+    return false;
+  }
+}
+
 // ---------------- API Route ----------------
-app.post("/login", async (req, res) => {
+app.post("/login", registrationLimiter, async (req, res) => {
   try {
     const {
       email,
@@ -333,7 +364,8 @@ app.post("/login", async (req, res) => {
       PreferedLanguage,
       Skills,
       reg_no,
-      Batch
+      Batch,
+      recaptchaToken
     } = req.body;
 
     if (
@@ -349,6 +381,15 @@ app.post("/login", async (req, res) => {
       return res
         .status(400)
         .json({ ok: false, message: "All fields are required" });
+    }
+
+    // Verify reCAPTCHA token
+    const isCaptchaValid = await verifyRecaptcha(recaptchaToken);
+    if (!isCaptchaValid) {
+      console.warn(`⚠️  Bot suspected from IP: ${req.ip}`);
+      return res
+        .status(403)
+        .json({ ok: false, message: "Bot detection triggered. Please try again." });
     }
 
     const alreadyExistUser = await User.findOne({ email });
@@ -387,8 +428,8 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Alias for clients expecting /api/register
-app.post("/api/register", async (req, res) => {
+// Alias for clients expecting /api/register (with rate limiting)
+app.post("/api/register", registrationLimiter, async (req, res) => {
   // Delegate to /login handler
   return app._router.handle(
     { ...req, url: "/login", originalUrl: "/login", method: "POST" },
