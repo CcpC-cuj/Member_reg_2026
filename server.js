@@ -275,39 +275,88 @@ Code Crafters Programming Club`
   }
 }
 
-async function sendCustomEmail(toEmails, subject, textContent) {
+async function sendCustomEmail(users, subject, textContent) {
   try {
-    await emailApi.sendTransacEmail({
-      sender: {
-        email: process.env.EMAIL_FROM,
-        name: "Code Crafters Programming Club"
-      },
-      to: toEmails.map((email) => ({ email })),
-      subject,
-      textContent
-    });
-    console.log(`Custom email sent to ${toEmails.length} recipient(s)`);
-    return true;
+    // Send individual emails to each user to maintain privacy (BCC)
+    const results = await Promise.allSettled(
+      users.map(async (user) => {
+        // Personalize the message by replacing placeholders
+        const personalizedContent = textContent
+          .replace(/\{\{name\}\}/g, user.name || 'Member')
+          .replace(/\{\{email\}\}/g, user.email || '')
+          .replace(/\{\{reg_no\}\}/g, user.reg_no || '');
+        
+        return emailApi.sendTransacEmail({
+          sender: {
+            email: process.env.EMAIL_FROM,
+            name: "Code Crafters Programming Club"
+          },
+          to: [{ email: user.email, name: user.name }],
+          subject,
+          textContent: personalizedContent
+        });
+      })
+    );
+    
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+    
+    console.log(`Custom emails sent: ${successful} successful, ${failed} failed out of ${users.length} total`);
+    
+    if (failed > 0) {
+      console.error('Failed email details:', results.filter(r => r.status === 'rejected').map(r => r.reason));
+    }
+    
+    return successful > 0; // Return true if at least one email was sent
   } catch (error) {
     console.error("Brevo Email Error:", error);
     return false;
   }
 }
 
-async function sendCustomEmailHtml(toEmails, subject, htmlContent, plainText) {
+async function sendCustomEmailHtml(users, subject, htmlContent, plainText) {
   try {
-    await emailApi.sendTransacEmail({
-      sender: {
-        email: process.env.EMAIL_FROM,
-        name: "Code Crafters Programming Club"
-      },
-      to: toEmails.map((email) => ({ email })),
-      subject,
-      htmlContent: htmlContent || undefined,
-      textContent: plainText || undefined
-    });
-    console.log(`Custom HTML email sent to ${toEmails.length} recipient(s)`);
-    return true;
+    // Send individual emails to each user to maintain privacy (BCC)
+    const results = await Promise.allSettled(
+      users.map(async (user) => {
+        // Personalize both HTML and plain text content
+        const personalizedHtml = htmlContent
+          ? htmlContent
+              .replace(/\{\{name\}\}/g, user.name || 'Member')
+              .replace(/\{\{email\}\}/g, user.email || '')
+              .replace(/\{\{reg_no\}\}/g, user.reg_no || '')
+          : undefined;
+        
+        const personalizedPlain = plainText
+          ? plainText
+              .replace(/\{\{name\}\}/g, user.name || 'Member')
+              .replace(/\{\{email\}\}/g, user.email || '')
+              .replace(/\{\{reg_no\}\}/g, user.reg_no || '')
+          : undefined;
+        
+        return emailApi.sendTransacEmail({
+          sender: {
+            email: process.env.EMAIL_FROM,
+            name: "Code Crafters Programming Club"
+          },
+          to: [{ email: user.email, name: user.name }],
+          subject,
+          htmlContent: personalizedHtml,
+          textContent: personalizedPlain
+        });
+      })
+    );
+    
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+    
+    console.log(`Custom HTML emails sent: ${successful} successful, ${failed} failed out of ${users.length} total`);
+    
+    if (failed > 0) {
+      console.error('Failed email details:', results.filter(r => r.status === 'rejected').map(r => r.reason));
+    }
+    
+    return successful > 0; // Return true if at least one email was sent
   } catch (error) {
     console.error("Brevo Email Error:", error);
     return false;
@@ -507,9 +556,9 @@ app.post("/admin/email/user/:id", requireAdmin, async (req, res) => {
       return res.status(404).json({ ok: false, message: "User not found" });
     }
 
-    const ok = await sendCustomEmail([user.email], subject, text);
+    const ok = await sendCustomEmail([user], subject, text);
     if (!ok) return res.status(500).json({ ok: false, message: "Email failed" });
-    res.json({ ok: true, message: "Email sent" });
+    res.json({ ok: true, message: `Personalized email sent to ${user.name}` });
   } catch (err) {
     console.error("Error sending email:", err);
     res.status(500).json({ ok: false, message: "Failed to send email" });
@@ -531,16 +580,15 @@ app.post("/admin/email/users", requireAdmin, async (req, res) => {
     }
 
     const users = await User.find({ _id: { $in: userIds } });
-    const emails = users.map((u) => u.email);
-    if (emails.length === 0) {
+    if (users.length === 0) {
       return res
         .status(404)
         .json({ ok: false, message: "No users found for provided IDs" });
     }
 
-    const ok = await sendCustomEmail(emails, subject, text);
+    const ok = await sendCustomEmail(users, subject, text);
     if (!ok) return res.status(500).json({ ok: false, message: "Email failed" });
-    res.json({ ok: true, message: "Emails sent" });
+    res.json({ ok: true, message: `Individual emails sent to ${users.length} recipient(s)` });
   } catch (err) {
     console.error("Error sending emails:", err);
     res.status(500).json({ ok: false, message: "Failed to send emails" });
@@ -556,14 +604,13 @@ app.post("/admin/email/all", requireAdmin, async (req, res) => {
         .json({ ok: false, message: "Subject and text are required" });
     }
     const users = await User.find({});
-    const emails = users.map((u) => u.email);
-    if (emails.length === 0) {
+    if (users.length === 0) {
       return res.status(404).json({ ok: false, message: "No users found" });
     }
 
-    const ok = await sendCustomEmail(emails, subject, text);
+    const ok = await sendCustomEmail(users, subject, text);
     if (!ok) return res.status(500).json({ ok: false, message: "Email failed" });
-    res.json({ ok: true, message: "Emails sent to all users" });
+    res.json({ ok: true, message: `Individual emails sent to all ${users.length} user(s)` });
   } catch (err) {
     console.error("Error sending emails:", err);
     res.status(500).json({ ok: false, message: "Failed to send emails" });
