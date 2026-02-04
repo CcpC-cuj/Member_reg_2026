@@ -911,13 +911,12 @@ app.post("/api/email/send-bulk", async (req, res) => {
   const sentBy = getSentBy(req);
   try {
     const users = await User.find({ active: true });
-    const emails = users.map((u) => u.email);
     const userIds = users.map((u) => u._id);
     const subject = "Bulk welcome email";
     const htmlContent = "";
     const plainText = "Welcome to Code Crafters Programming Club!";
 
-    if (emails.length === 0) {
+    if (users.length === 0) {
       await EmailLog.create({
         type: "bulk",
         userIds: [],
@@ -935,7 +934,7 @@ app.post("/api/email/send-bulk", async (req, res) => {
     }
 
     const ok = await sendCustomEmail(
-      emails,
+      users,
       "Code Crafters Programming Club - Welcome",
       "Welcome to Code Crafters Programming Club!"
     );
@@ -966,12 +965,12 @@ app.post("/api/email/send-bulk", async (req, res) => {
       sentAt: new Date(),
       sentBy,
       status: "success",
-      message: `Bulk email sent to ${emails.length} active users`
+      message: `Individual emails sent to ${users.length} active user(s)`
     });
 
     res.json({
       success: true,
-      message: `Bulk email sent to ${emails.length} active users`
+      message: `Individual emails sent to ${users.length} active user(s)`
     });
   } catch (err) {
     console.error("Error in /api/email/send-bulk:", err);
@@ -1038,10 +1037,9 @@ app.post("/api/email/send-custom", async (req, res) => {
     }
 
     const users = await User.find({ _id: { $in: validIds } });
-    const emails = users.map((u) => u.email);
     const resolvedUserIds = users.map((u) => u._id);
 
-    if (emails.length === 0) {
+    if (users.length === 0) {
       const log = await EmailLog.create({
         type: "custom",
         userIds: [],
@@ -1058,7 +1056,7 @@ app.post("/api/email/send-custom", async (req, res) => {
         .json({ success: false, message: "No users found for provided IDs" });
     }
 
-    const ok = await sendCustomEmailHtml(emails, subject, htmlContent, plainText);
+    const ok = await sendCustomEmailHtml(users, subject, htmlContent, plainText);
 
     const log = await EmailLog.create({
       type: "custom",
@@ -1070,7 +1068,7 @@ app.post("/api/email/send-custom", async (req, res) => {
       sentBy,
       status: ok ? "success" : "failed",
       message: ok
-        ? `Custom email sent to ${emails.length} users`
+        ? `Individual emails sent to ${users.length} user(s)`
         : "Failed to send custom email"
     });
 
@@ -1083,7 +1081,7 @@ app.post("/api/email/send-custom", async (req, res) => {
 
     return res.json({
       success: true,
-      message: `Custom email sent to ${emails.length} users`,
+      message: `Individual emails sent to ${users.length} user(s)`,
       emailLogId: log._id
     });
   } catch (err) {
